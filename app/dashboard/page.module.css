@@ -1,0 +1,372 @@
+.dashboard {
+  display: flex;
+  height: calc(100vh - 72px);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 320px;
+  background: var(--surface);
+  border-right: 1px solid var(--surface-elevated);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 50px;
+}
+
+.sidebarToggle {
+  position: absolute;
+  left: 320px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 60px;
+  background: var(--surface);
+  border: 1px solid var(--surface-elevated);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  z-index: 10;
+  transition: left 0.3s ease;
+}
+
+.sidebar.collapsed + .sidebarToggle {
+  left: 50px;
+}
+
+.sidebarHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--surface-elevated);
+}
+
+.sidebarHeader h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.filterGroup {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--surface-elevated);
+}
+
+.filterGroup label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.filterGroup select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-dark);
+  border: 1px solid var(--surface-elevated);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+.checkbox span {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.stats {
+  padding: 12px 20px;
+  background: var(--bg-dark);
+  margin: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-elevated);
+}
+
+.stats h3 {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.statLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.statValue.warning {
+  color: var(--secondary);
+}
+
+.quakeList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+.quakeList h3 {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 12px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+}
+
+.quakeCard {
+  background: var(--bg-dark);
+  border: 1px solid var(--surface-elevated);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quakeCard:hover {
+  border-color: var(--primary);
+}
+
+.quakeCard.selected {
+  border-color: var(--primary);
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.quakeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.magnitude {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.timeAgo {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.quakeLocation {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quakeMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.tsunamiBadge {
+  background: var(--secondary);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.6rem;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mapContainer {
+  flex: 1;
+  position: relative;
+}
+
+.quakeDetail {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--surface-elevated);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.closeBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: var(--surface-elevated);
+  border: none;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeBtn:hover {
+  background: var(--secondary);
+  color: white;
+}
+
+.quakeDetail h3 {
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  padding-right: 20px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailItem label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detailItem span {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.tsunamiWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px;
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid var(--secondary);
+  border-radius: 6px;
+  color: var(--secondary);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.tsunamiWarning svg {
+  width: 16px;
+  height: 16px;
+}
+
+.legend {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  background: var(--surface);
+  border: 1px solid var(--surface-elevated);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.legend h4 {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.legend h4:not(:first-child) {
+  margin-top: 10px;
+}
+
+.legendItems {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.legendItems span {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  color: white;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    width: 280px;
+  }
+
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px;
+  }
+
+  .sidebarToggle {
+    left: 0;
+  }
+
+  .sidebar.collapsed + .sidebarToggle {
+    left: 0;
+  }
+}
