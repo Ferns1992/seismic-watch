@@ -116,10 +116,12 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     let autoRotate = true
     let velocity = { x: 0, y: 0.002 }
     let isDragging3d = false
+    let isClicking = false
     let dragStartPos = { x: 0, y: 0 }
 
     const onDown = (e: MouseEvent) => {
       isDragging3d = true
+      isClicking = true
       autoRotate = false
       dragStartPos = { x: e.clientX, y: e.clientY }
     }
@@ -127,6 +129,9 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       if (!isDragging3d) return
       const dx = e.clientX - dragStartPos.x
       const dy = e.clientY - dragStartPos.y
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        isClicking = false
+      }
       velocity.y = dx * 0.004
       velocity.x = dy * 0.004
       dragStartPos = { x: e.clientX, y: e.clientY }
@@ -137,9 +142,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       camera.position.z = Math.max(1.3, Math.min(5, camera.position.z + e.deltaY * 0.001))
     }
     const onClick = (e: MouseEvent) => {
-      const dx = Math.abs(e.clientX - dragStartPos.x)
-      const dy = Math.abs(e.clientY - dragStartPos.y)
-      if (dx > 5 || dy > 5) return
+      if (!isClicking) return
       
       const rect = container.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
@@ -232,6 +235,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
 
   // 2D handlers
   const handle2DMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setIsDragging(true)
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
   }
@@ -239,7 +243,8 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     if (!isDragging) return
     setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
   }
-  const handle2DClick = (quake: {id: string, coordinates: {latitude: number, longitude: number}}) => {
+  const handle2DClick = (quake: {id: string, coordinates: {latitude: number, longitude: number}}, e: React.MouseEvent) => {
+    e.stopPropagation()
     setSelectedQuakeId(quake.id)
     const coords = latLonToXY(quake.coordinates.latitude, quake.coordinates.longitude)
     const cw = containerRef.current?.clientWidth || 800
@@ -293,7 +298,8 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
                 return (
                   <div
                     key={quake.id}
-                    onClick={() => handle2DClick(quake)}
+                    onClick={(e) => { e.stopPropagation(); handle2DClick(quake, e) }}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       position: 'absolute',
                       left: `${(coords.x / mapWidth) * 100}%`,
@@ -305,6 +311,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
                       cursor: 'pointer',
                       boxShadow: `0 0 10px ${color}`,
                       border: selectedQuakeId === quake.id ? '2px solid white' : 'none',
+                      zIndex: 10,
                     }}
                   />
                 )
