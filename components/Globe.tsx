@@ -306,22 +306,22 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
         >
           <div style={{
             position: 'absolute', left: '50%', top: '50%',
-            width: `${mapWidth * zoom * 0.35}px`,
-            height: `${mapHeight * zoom * 0.35}px`,
+            width: `${mapWidth * zoom * 0.45}px`,
+            height: `${mapHeight * zoom * 0.45}px`,
             transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             transition: isDragging ? 'none' : 'transform 0.15s ease-out',
           }}>
             <img
-              src="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+              src="https://unpkg.com/three-globe/example/img/earth-dark.jpg"
               alt="Map"
               onLoad={() => setMapLoaded(true)}
-              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%', boxShadow: '0 0 50px rgba(6,182,212,0.3)' }}
+              style={{ width: '100%', height: '100%', objectFit: 'fill', boxShadow: '0 0 30px rgba(6,182,212,0.2)' }}
               draggable={false}
             />
             
             {mapLoaded && earthquakes.map(quake => {
               const coords = latLonToXY(quake.coordinates.latitude, quake.coordinates.longitude)
-              const size = Math.max(10, quake.magnitude * 5)
+              const size = Math.max(12, quake.magnitude * 6)
               const color = quake.magnitude >= 6 ? '#ff2244' : quake.magnitude >= 4.5 ? '#ffaa00' : '#00aaff'
               return (
                 <div
