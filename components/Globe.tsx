@@ -247,7 +247,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       const y = r * Math.cos(phi)
       const z = r * Math.sin(phi) * Math.sin(theta)
 
-      const size = Math.max(0.03, quake.magnitude * 0.02)
+      const size = Math.max(0.015, quake.magnitude * 0.012)
       let color = 0x00aaff
       if (quake.magnitude >= 6) color = 0xff2244
       else if (quake.magnitude >= 4.5) color = 0xffaa00
