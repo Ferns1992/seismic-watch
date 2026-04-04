@@ -299,17 +299,36 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
         const xGroup = new THREE.Group()
         xGroup.userData = { isXMarker: true }
         
-        // Simple red circle marker
-        const ringGeo = new THREE.RingGeometry(0.035, 0.05, 32)
-        const ringMat = new THREE.MeshBasicMaterial({ 
+        // Red X mark
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 })
+        
+        // X lines
+        const line1 = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.04, 0.04, 0), 
+            new THREE.Vector3(0.04, -0.04, 0)
+          ]),
+          lineMat
+        )
+        const line2 = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.04, 0.04, 0), 
+            new THREE.Vector3(-0.04, -0.04, 0)
+          ]),
+          lineMat
+        )
+        
+        // Circle around X
+        const circleGeo = new THREE.RingGeometry(0.05, 0.06, 32)
+        const circleMat = new THREE.MeshBasicMaterial({ 
           color: 0xff0000, 
           side: THREE.DoubleSide,
           transparent: true, 
-          opacity: 0.9 
+          opacity: 0.8 
         })
-        const ring = new THREE.Mesh(ringGeo, ringMat)
+        const circle = new THREE.Mesh(circleGeo, circleMat)
         
-        xGroup.add(ring)
+        xGroup.add(line1, line2, circle)
         xGroup.position.set(x, y, z)
         xGroup.lookAt(cameraRef.current?.position || new THREE.Vector3(0, 0, 3))
         globeRef.current!.add(xGroup)
