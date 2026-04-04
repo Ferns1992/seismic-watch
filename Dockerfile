@@ -4,23 +4,18 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY .env ./
 
-RUN npm ci --production
+RUN npm ci
 
 COPY . .
 
 RUN npx prisma generate
 RUN npm run build
 
-# Run database migrations and seed admin user
-RUN npx prisma migrate deploy
-RUN node seed-admin.js || true
-
 EXPOSE 4080
 
 ENV PORT=4080
 ENV NODE_ENV=production
-ENV NEXTAUTH_SECRET=seismicwatch-production-secret-key-change-me
-ENV NEXTAUTH_URL=https://seismic.yourdomain.com
 
 CMD ["npm", "start"]
