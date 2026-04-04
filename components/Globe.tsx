@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 
 interface GlobeProps {
@@ -14,10 +14,10 @@ interface GlobeProps {
 
 export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
   const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d')
   const [selectedQuakeId, setSelectedQuakeId] = useState<string | null>(null)
   
-  // 3D refs
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -25,7 +25,6 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
   const markersRef = useRef<THREE.Mesh[]>([])
   const animationRef = useRef<number>(0)
   
-  // 2D refs
   const [mapLoaded, setMapLoaded] = useState(false)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -41,41 +40,37 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     return { x, y }
   }
 
-  // 3D Globe Setup
+  // Initialize 3D Globe
   useEffect(() => {
-    if (!containerRef.current || viewMode !== '3d') return
+    if (!canvasRef.current || viewMode !== '3d') return
     
-    const container = containerRef.current
-    const width = container.clientWidth
-    const height = container.clientHeight
+    const container = canvasRef.current
+    const width = container.clientWidth || 800
+    const height = container.clientHeight || 600
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x000000)
     sceneRef.current = scene
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000)
-    camera.position.z = 2.5
+    camera.position.z = 3
     cameraRef.current = camera
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 0.5)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6)
     scene.add(ambient)
     const sun = new THREE.DirectionalLight(0xffffff, 1)
     sun.position.set(5, 3, 5)
     scene.add(sun)
 
-    // Globe Group
     const globeGroup = new THREE.Group()
     scene.add(globeGroup)
     globeRef.current = globeGroup
 
-    // Earth
     const textureLoader = new THREE.TextureLoader()
     const earthGeo = new THREE.SphereGeometry(1, 64, 64)
     const earthMat = new THREE.MeshPhongMaterial({
@@ -83,20 +78,16 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       bumpMap: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
       bumpScale: 0.02,
     })
-    const earth = new THREE.Mesh(earthGeo, earthMat)
-    globeGroup.add(earth)
+    globeGroup.add(new THREE.Mesh(earthGeo, earthMat))
 
-    // Clouds
     const cloudGeo = new THREE.SphereGeometry(1.01, 32, 32)
     const cloudMat = new THREE.MeshPhongMaterial({
       map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-clouds.png'),
       transparent: true,
       opacity: 0.3,
     })
-    const clouds = new THREE.Mesh(cloudGeo, cloudMat)
-    globeGroup.add(clouds)
+    globeGroup.add(new THREE.Mesh(cloudGeo, cloudMat))
 
-    // Stars
     const starGeo = new THREE.BufferGeometry()
     const starCount = 1500
     const positions = new Float32Array(starCount * 3)
@@ -109,10 +100,8 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       positions[i + 2] = r * Math.cos(phi)
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }))
-    scene.add(stars)
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 })))
 
-    // Animation
     let autoRotate = true
     let velocity = { x: 0, y: 0.002 }
     let isDragging3d = false
@@ -129,9 +118,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       if (!isDragging3d) return
       const dx = e.clientX - dragStartPos.x
       const dy = e.clientY - dragStartPos.y
-      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-        isClicking = false
-      }
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isClicking = false
       velocity.y = dx * 0.004
       velocity.x = dy * 0.004
       dragStartPos = { x: e.clientX, y: e.clientY }
@@ -139,34 +126,32 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     const onUp = () => { isDragging3d = false }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      camera.position.z = Math.max(1.3, Math.min(5, camera.position.z + e.deltaY * 0.001))
+      e.stopPropagation()
+      const delta = e.deltaY > 0 ? 0.3 : -0.3
+      const newZ = Math.max(1.5, Math.min(6, camera.position.z + delta))
+      camera.position.z = newZ
     }
     const onClick = (e: MouseEvent) => {
       if (!isClicking) return
-      
-      const rect = container.getBoundingClientRect()
+      const rect = renderer.domElement.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-      
       const raycaster = new THREE.Raycaster()
       raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
       const hits = raycaster.intersectObjects(markersRef.current)
-      
       if (hits.length > 0 && onMarkerClick) {
-        const id = hits[0].object.userData.id
-        onMarkerClick(id)
+        onMarkerClick(hits[0].object.userData.id)
       }
     }
 
-    container.addEventListener('mousedown', onDown)
-    container.addEventListener('mousemove', onMove)
-    container.addEventListener('mouseup', onUp)
-    container.addEventListener('wheel', onWheel, { passive: false })
-    container.addEventListener('click', onClick)
+    renderer.domElement.addEventListener('mousedown', onDown)
+    renderer.domElement.addEventListener('mousemove', onMove)
+    renderer.domElement.addEventListener('mouseup', onUp)
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
+    renderer.domElement.addEventListener('click', onClick)
 
     function animate() {
       animationRef.current = requestAnimationFrame(animate)
-      
       if (autoRotate) {
         globeGroup.rotation.y += 0.0015
       } else {
@@ -175,28 +160,31 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
         velocity.y *= 0.95
         velocity.x *= 0.95
       }
-      
       renderer.render(scene, camera)
     }
     animate()
 
     const onResize = () => {
-      renderer.setSize(container.clientWidth, container.clientHeight)
-      camera.aspect = container.clientWidth / container.clientHeight
+      const w = container.clientWidth || 800
+      const h = container.clientHeight || 600
+      renderer.setSize(w, h)
+      camera.aspect = w / h
       camera.updateProjectionMatrix()
     }
     window.addEventListener('resize', onResize)
 
     return () => {
-      container.removeEventListener('mousedown', onDown)
-      container.removeEventListener('mousemove', onMove)
-      container.removeEventListener('mouseup', onUp)
-      container.removeEventListener('wheel', onWheel)
-      container.removeEventListener('click', onClick)
+      renderer.domElement.removeEventListener('mousedown', onDown)
+      renderer.domElement.removeEventListener('mousemove', onMove)
+      renderer.domElement.removeEventListener('mouseup', onUp)
+      renderer.domElement.removeEventListener('wheel', onWheel)
+      renderer.domElement.removeEventListener('click', onClick)
       window.removeEventListener('resize', onResize)
       cancelAnimationFrame(animationRef.current)
       renderer.dispose()
-      container.removeChild(renderer.domElement)
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement)
+      }
     }
   }, [viewMode, onMarkerClick])
 
@@ -211,174 +199,223 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       const phi = (90 - quake.coordinates.latitude) * Math.PI / 180
       const theta = (quake.coordinates.longitude + 180) * Math.PI / 180
       const r = 1.025
-      
       const x = -r * Math.sin(phi) * Math.cos(theta)
       const y = r * Math.cos(phi)
       const z = r * Math.sin(phi) * Math.sin(theta)
 
       const size = Math.max(0.02, quake.magnitude * 0.015)
-      const geo = new THREE.SphereGeometry(size, 8, 8)
-      
       let color = 0x00aaff
       if (quake.magnitude >= 6) color = 0xff2244
       else if (quake.magnitude >= 4.5) color = 0xffaa00
 
-      const mat = new THREE.MeshBasicMaterial({ color })
-      const marker = new THREE.Mesh(geo, mat)
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 8, 8),
+        new THREE.MeshBasicMaterial({ color })
+      )
       marker.position.set(x, y, z)
       marker.userData = { id: quake.id }
-      
       globeRef.current!.add(marker)
       markersRef.current.push(marker)
     })
   }, [earthquakes, viewMode])
 
+  // Add red X for selected in 3D
+  useEffect(() => {
+    if (!globeRef.current || viewMode !== '3d') return
+    
+    // Remove existing X markers
+    const existingX = globeRef.current.children.filter(c => c.userData.isXMarker)
+    existingX.forEach(c => globeRef.current!.remove(c))
+
+    if (selectedQuakeId) {
+      const quake = earthquakes.find(q => q.id === selectedQuakeId)
+      if (quake) {
+        const phi = (90 - quake.coordinates.latitude) * Math.PI / 180
+        const theta = (quake.coordinates.longitude + 180) * Math.PI / 180
+        const r = 1.06
+        const x = -r * Math.sin(phi) * Math.cos(theta)
+        const y = r * Math.cos(phi)
+        const z = r * Math.sin(phi) * Math.sin(theta)
+
+        const xGroup = new THREE.Group()
+        xGroup.userData = { isXMarker: true }
+
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xff0000 })
+        const line1 = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.05, 0.05, 0), new THREE.Vector3(0.05, -0.05, 0)]),
+          lineMat
+        )
+        const line2 = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.05, 0.05, 0), new THREE.Vector3(-0.05, -0.05, 0)]),
+          lineMat
+        )
+        xGroup.add(line1, line2)
+        xGroup.position.set(x, y, z)
+        globeRef.current!.add(xGroup)
+      }
+    }
+  }, [earthquakes, viewMode, selectedQuakeId])
+
   // 2D handlers
-  const handle2DMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    setZoom(z => Math.max(0.3, Math.min(5, z * (e.deltaY > 0 ? 0.85 : 1.15))))
+  }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsDragging(true)
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
-  }
-  const handle2DMouseMove = (e: React.MouseEvent) => {
+  }, [offset])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging) return
     setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
-  }
-  const handle2DClick = (quake: {id: string, coordinates: {latitude: number, longitude: number}}, e: React.MouseEvent) => {
+  }, [isDragging, dragStart])
+
+  const handleMarkerClick = useCallback((quake: {id: string, coordinates: {latitude: number, longitude: number}}, e: React.MouseEvent) => {
     e.stopPropagation()
     setSelectedQuakeId(quake.id)
-    const coords = latLonToXY(quake.coordinates.latitude, quake.coordinates.longitude)
-    const cw = containerRef.current?.clientWidth || 800
-    const ch = containerRef.current?.clientHeight || 600
-    setOffset({ x: cw/2 - coords.x * 1.2, y: ch/2 - coords.y * 1.2 })
-    setZoom(2)
     if (onMarkerClick) onMarkerClick(quake.id)
-  }
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    setZoom(z => Math.max(0.5, Math.min(4, z * (e.deltaY > 0 ? 0.9 : 1.1))))
-  }
+  }, [onMarkerClick])
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
+      {/* 3D View */}
       <div
-        ref={containerRef}
-        onMouseDown={viewMode === '2d' ? handle2DMouseDown : undefined}
-        onMouseMove={viewMode === '2d' ? handle2DMouseMove : undefined}
-        onMouseUp={() => setIsDragging(false)}
-        onMouseLeave={() => setIsDragging(false)}
-        onWheel={viewMode === '2d' ? handleWheel : undefined}
-        style={{ width: '100%', height: '100%', cursor: viewMode === '3d' ? 'grab' : isDragging ? 'grabbing' : 'grab' }}
-      >
-        {viewMode === '3d' ? (
-          // 3D View is rendered via Three.js effect
-          <div />
-        ) : (
-          // 2D View
-          <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#0a0e17' }}>
-            <div style={{
-              position: 'absolute',
-              left: '50%', top: '50%',
-              width: `${mapWidth * zoom * 0.35}px`,
-              height: `${mapHeight * zoom * 0.35}px`,
-              transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-              transition: isDragging ? 'none' : 'all 0.1s',
-            }}>
-              <img
-                src="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-                alt="Map"
-                onLoad={() => setMapLoaded(true)}
-                style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%', boxShadow: '0 0 40px rgba(6,182,212,0.2)' }}
-                draggable={false}
-              />
-              {mapLoaded && earthquakes.map(quake => {
-                const coords = latLonToXY(quake.coordinates.latitude, quake.coordinates.longitude)
-                const size = Math.max(8, quake.magnitude * 4)
-                const color = quake.magnitude >= 6 ? '#ff2244' : quake.magnitude >= 4.5 ? '#ffaa00' : '#00aaff'
-                return (
-                  <div
-                    key={quake.id}
-                    onClick={(e) => { e.stopPropagation(); handle2DClick(quake, e) }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    style={{
-                      position: 'absolute',
-                      left: `${(coords.x / mapWidth) * 100}%`,
-                      top: `${(coords.y / mapHeight) * 100}%`,
-                      width: `${size}px`, height: `${size}px`,
-                      background: color,
-                      borderRadius: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      cursor: 'pointer',
-                      boxShadow: `0 0 10px ${color}`,
-                      border: selectedQuakeId === quake.id ? '2px solid white' : 'none',
-                      zIndex: 10,
-                    }}
-                  />
-                )
-              })}
-              {selectedQuakeId && (() => {
-                const q = earthquakes.find(e => e.id === selectedQuakeId)
-                if (!q) return null
-                const coords = latLonToXY(q.coordinates.latitude, q.coordinates.longitude)
-                return (
-                  <div style={{
+        ref={canvasRef}
+        style={{
+          display: viewMode === '3d' ? 'block' : 'none',
+          width: '100%',
+          height: '100%',
+        }}
+      />
+
+      {/* 2D View */}
+      {viewMode === '2d' && (
+        <div
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={() => setIsDragging(false)}
+          onMouseLeave={() => setIsDragging(false)}
+          onWheel={handleWheel}
+          style={{
+            width: '100%', height: '100%', position: 'relative',
+            overflow: 'hidden', background: '#0a0e17',
+            cursor: isDragging ? 'grabbing' : 'grab'
+          }}
+        >
+          <div style={{
+            position: 'absolute', left: '50%', top: '50%',
+            width: `${mapWidth * zoom * 0.35}px`,
+            height: `${mapHeight * zoom * 0.35}px`,
+            transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+            transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+          }}>
+            <img
+              src="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+              alt="Map"
+              onLoad={() => setMapLoaded(true)}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%', boxShadow: '0 0 50px rgba(6,182,212,0.3)' }}
+              draggable={false}
+            />
+            
+            {mapLoaded && earthquakes.map(quake => {
+              const coords = latLonToXY(quake.coordinates.latitude, quake.coordinates.longitude)
+              const size = Math.max(10, quake.magnitude * 5)
+              const color = quake.magnitude >= 6 ? '#ff2244' : quake.magnitude >= 4.5 ? '#ffaa00' : '#00aaff'
+              return (
+                <div
+                  key={quake.id}
+                  onClick={(e) => handleMarkerClick(quake, e)}
+                  style={{
                     position: 'absolute',
                     left: `${(coords.x / mapWidth) * 100}%`,
                     top: `${(coords.y / mapHeight) * 100}%`,
+                    width: `${size}px`, height: `${size}px`,
+                    background: color,
+                    borderRadius: '50%',
                     transform: 'translate(-50%, -50%)',
-                    pointerEvents: 'none',
-                  }}>
-                    <svg width="40" height="40">
-                      <line x1="5" y1="5" x2="35" y2="35" stroke="red" strokeWidth="3"/>
-                      <line x1="35" y1="5" x2="5" y2="35" stroke="red" strokeWidth="3"/>
-                      <circle cx="20" cy="20" r="15" fill="none" stroke="red" strokeWidth="2" strokeDasharray="4 2"/>
-                    </svg>
-                  </div>
-                )
-              })()}
-            </div>
+                    cursor: 'pointer',
+                    boxShadow: `0 0 15px ${color}`,
+                    border: selectedQuakeId === quake.id ? '3px solid white' : 'none',
+                    zIndex: 10,
+                  }}
+                />
+              )
+            })}
+            
+            {selectedQuakeId && (() => {
+              const q = earthquakes.find(e => e.id === selectedQuakeId)
+              if (!q) return null
+              const coords = latLonToXY(q.coordinates.latitude, q.coordinates.longitude)
+              return (
+                <div style={{
+                  position: 'absolute',
+                  left: `${(coords.x / mapWidth) * 100}%`,
+                  top: `${(coords.y / mapHeight) * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                  pointerEvents: 'none',
+                  zIndex: 20,
+                }}>
+                  <svg width="50" height="50" viewBox="0 0 50 50">
+                    <line x1="10" y1="10" x2="40" y2="40" stroke="#ff0000" strokeWidth="4"/>
+                    <line x1="40" y1="10" x2="10" y2="40" stroke="#ff0000" strokeWidth="4"/>
+                    <circle cx="25" cy="25" r="20" fill="none" stroke="#ff0000" strokeWidth="2" strokeDasharray="6 3"/>
+                  </svg>
+                </div>
+              )
+            })()}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Controls */}
+      {/* View Toggle Buttons */}
       <button
         onClick={() => { setViewMode('3d'); setSelectedQuakeId(null) }}
         style={{
           position: 'absolute', top: 20, right: 20,
-          padding: '10px 20px',
+          padding: '12px 24px',
           background: viewMode === '3d' ? '#06b6d4' : 'rgba(17,24,39,0.9)',
           border: '1px solid #06b6d4', borderRadius: 8,
           color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+          zIndex: 100,
         }}
       >
-        🌍 3D Globe
+        3D Globe
       </button>
       <button
         onClick={() => { setViewMode('2d'); setSelectedQuakeId(null) }}
         style={{
           position: 'absolute', top: 20, right: 140,
-          padding: '10px 20px',
+          padding: '12px 24px',
           background: viewMode === '2d' ? '#06b6d4' : 'rgba(17,24,39,0.9)',
           border: '1px solid #06b6d4', borderRadius: 8,
           color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+          zIndex: 100,
         }}
       >
-        🗺️ 2D Map
+        2D Map
       </button>
       
       <div style={{
         position: 'absolute', top: 20, left: 20,
-        background: 'rgba(17,24,39,0.9)', padding: '12px 16px',
-        borderRadius: 8, border: '1px solid #1e293b', color: '#94a3b8', fontSize: 12,
+        background: 'rgba(17,24,39,0.9)', padding: '14px 18px',
+        borderRadius: 8, border: '1px solid #1e293b', color: '#94a3b8', fontSize: 13,
+        zIndex: 100,
       }}>
-        <div style={{ marginBottom: 6, fontWeight: 600, color: '#f8fafc' }}>Controls</div>
+        <div style={{ marginBottom: 8, fontWeight: 600, color: '#f8fafc' }}>Controls</div>
         {viewMode === '3d' ? (
-          <><div>🖱️ Drag to rotate</div><div>🔍 Scroll to zoom</div></>
+          <>
+            <div>Drag to rotate</div>
+            <div>Scroll to zoom</div>
+          </>
         ) : (
-          <><div>🖱️ Drag to move</div><div>🔍 Scroll to zoom</div></>
+          <>
+            <div>Drag to pan</div>
+            <div>Scroll to zoom</div>
+          </>
         )}
-        <div>👆 Click marker</div>
+        <div style={{ marginTop: 4 }}>Click marker for details</div>
       </div>
     </div>
   )
