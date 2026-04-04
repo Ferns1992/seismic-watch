@@ -142,11 +142,19 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       const raycaster = new THREE.Raycaster()
       raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
       
-      // Check for hits on marker meshes
-      const hits = raycaster.intersectObjects(markersRef.current)
+      // Get all meshes from globe group for intersection
+      const allMeshes: THREE.Mesh[] = []
+      globeRef.current?.children.forEach(child => {
+        if (child.userData.isMarker && child instanceof THREE.Mesh) {
+          allMeshes.push(child)
+        }
+      })
+      
+      const hits = raycaster.intersectObjects(allMeshes)
       
       if (hits.length > 0 && onMarkerClick) {
         const id = hits[0].object.userData.id
+        setSelectedQuakeId(id)
         onMarkerClick(id)
         
         // Auto-zoom to selected location
@@ -155,7 +163,6 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
           const phi = (90 - targetQuake.coordinates.latitude) * Math.PI / 180
           const theta = (targetQuake.coordinates.longitude + 180) * Math.PI / 180
           
-          // Animate globe to rotate to that location
           const targetRotationY = -theta + Math.PI / 2
           const targetRotationX = phi - Math.PI / 2
           
@@ -170,14 +177,9 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
             
             globeGroup.rotation.y = startRotation.y + (targetRotationY - startRotation.y) * eased
             globeGroup.rotation.x = startRotation.x + (targetRotationX - startRotation.x) * eased
+            camera.position.z = 3 + (1.8 - 3) * eased
             
-            // Zoom in
-            const targetZ = 1.8
-            camera.position.z = 3 + (targetZ - 3) * eased
-            
-            if (progress < 1) {
-              requestAnimationFrame(animateToLocation)
-            }
+            if (progress < 1) requestAnimationFrame(animateToLocation)
           }
           animateToLocation()
         }
@@ -232,7 +234,9 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
   useEffect(() => {
     if (!globeRef.current || viewMode !== '3d') return
     
-    markersRef.current.forEach(m => globeRef.current!.remove(m))
+    // Remove old markers
+    const oldMarkers = globeRef.current.children.filter(c => c.userData.isMarker)
+    oldMarkers.forEach(m => globeRef.current!.remove(m))
     markersRef.current = []
 
     earthquakes.forEach(quake => {
@@ -243,37 +247,19 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       const y = r * Math.cos(phi)
       const z = r * Math.sin(phi) * Math.sin(theta)
 
-      // Smaller markers with glow effect
-      const size = Math.max(0.015, quake.magnitude * 0.012)
+      const size = Math.max(0.03, quake.magnitude * 0.02)
       let color = 0x00aaff
       if (quake.magnitude >= 6) color = 0xff2244
       else if (quake.magnitude >= 4.5) color = 0xffaa00
 
-      // Create marker with glow
-      const markerGroup = new THREE.Group()
-      markerGroup.userData = { id: quake.id }
-      
-      // Core marker
       const marker = new THREE.Mesh(
         new THREE.SphereGeometry(size, 12, 12),
         new THREE.MeshBasicMaterial({ color })
       )
+      marker.position.set(x, y, z)
+      marker.userData = { id: quake.id, isMarker: true }
       
-      // Glow effect (larger transparent sphere)
-      const glow = new THREE.Mesh(
-        new THREE.SphereGeometry(size * 2.5, 8, 8),
-        new THREE.MeshBasicMaterial({ 
-          color, 
-          transparent: true, 
-          opacity: 0.3 
-        })
-      )
-      
-      markerGroup.add(marker, glow)
-      markerGroup.position.set(x, y, z)
-      markerGroup.lookAt(0, 0, 0)
-      
-      globeRef.current!.add(markerGroup)
+      globeRef.current!.add(marker)
       markersRef.current.push(marker)
     })
   }, [earthquakes, viewMode])
