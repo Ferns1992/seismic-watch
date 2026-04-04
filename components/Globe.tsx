@@ -113,12 +113,13 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       isClicking = true
       autoRotate = false
       dragStartPos = { x: e.clientX, y: e.clientY }
+      e.preventDefault()
     }
     const onMove = (e: MouseEvent) => {
       if (!isDragging3d) return
       const dx = e.clientX - dragStartPos.x
       const dy = e.clientY - dragStartPos.y
-      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isClicking = false
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isClicking = false
       velocity.y = dx * 0.004
       velocity.x = dy * 0.004
       dragStartPos = { x: e.clientX, y: e.clientY }
@@ -133,9 +134,11 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     }
     const onClick = (e: MouseEvent) => {
       if (!isClicking) return
+      
       const rect = renderer.domElement.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      
       const raycaster = new THREE.Raycaster()
       raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
       const hits = raycaster.intersectObjects(markersRef.current)
@@ -203,13 +206,14 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       const y = r * Math.cos(phi)
       const z = r * Math.sin(phi) * Math.sin(theta)
 
-      const size = Math.max(0.02, quake.magnitude * 0.015)
+      // Larger markers for better click detection
+      const size = Math.max(0.04, quake.magnitude * 0.025)
       let color = 0x00aaff
       if (quake.magnitude >= 6) color = 0xff2244
       else if (quake.magnitude >= 4.5) color = 0xffaa00
 
       const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 8, 8),
+        new THREE.SphereGeometry(size, 16, 16),
         new THREE.MeshBasicMaterial({ color })
       )
       marker.position.set(x, y, z)
@@ -232,24 +236,46 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
       if (quake) {
         const phi = (90 - quake.coordinates.latitude) * Math.PI / 180
         const theta = (quake.coordinates.longitude + 180) * Math.PI / 180
-        const r = 1.06
+        const r = 1.08
         const x = -r * Math.sin(phi) * Math.cos(theta)
         const y = r * Math.cos(phi)
         const z = r * Math.sin(phi) * Math.sin(theta)
 
         const xGroup = new THREE.Group()
         xGroup.userData = { isXMarker: true }
+        
+        // Make X face camera (billboard)
+        xGroup.lookAt(cameraRef.current?.position || new THREE.Vector3(0, 0, 3))
 
-        const lineMat = new THREE.LineBasicMaterial({ color: 0xff0000 })
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
+        
+        // Larger X lines
         const line1 = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.05, 0.05, 0), new THREE.Vector3(0.05, -0.05, 0)]),
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.08, 0.08, 0), 
+            new THREE.Vector3(0.08, -0.08, 0)
+          ]),
           lineMat
         )
         const line2 = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.05, 0.05, 0), new THREE.Vector3(-0.05, -0.05, 0)]),
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.08, 0.08, 0), 
+            new THREE.Vector3(-0.08, -0.08, 0)
+          ]),
           lineMat
         )
-        xGroup.add(line1, line2)
+        
+        // Ring
+        const ringGeo = new THREE.RingGeometry(0.06, 0.1, 32)
+        const ringMat = new THREE.MeshBasicMaterial({ 
+          color: 0xff0000, 
+          side: THREE.DoubleSide,
+          transparent: true, 
+          opacity: 0.8 
+        })
+        const ring = new THREE.Mesh(ringGeo, ringMat)
+        
+        xGroup.add(line1, line2, ring)
         xGroup.position.set(x, y, z)
         globeRef.current!.add(xGroup)
       }
