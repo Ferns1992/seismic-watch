@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchEarthquakes()
-    const interval = setInterval(fetchEarthquakes, 300000)
+    const interval = setInterval(fetchEarthquakes, 600000) // 10 minutes
     return () => clearInterval(interval)
   }, [fetchEarthquakes])
 

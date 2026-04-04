@@ -18,6 +18,23 @@ model User {
   preferences   UserPreferences?
 }
 
+model Earthquake {
+  id              String   @id
+  magnitude       Float
+  location        String
+  longitude       Float
+  latitude        Float
+  depth           Float
+  time            DateTime
+  depthCategory   String
+  tsunamiWarning  Boolean  @default(false)
+  isUnderwater    Boolean  @default(false)
+  lastUpdated     DateTime @default(now())
+  
+  @@index([time])
+  @@index([magnitude])
+}
+
 model UserPreferences {
   id              String   @id @default(cuid())
   userId          String   @unique
