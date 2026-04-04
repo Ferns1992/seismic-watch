@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
 
 interface EarthquakeFeature {
   id: string
@@ -21,165 +18,106 @@ function isUnderwater(longitude: number, latitude: number): boolean {
   return latitude >= -60 && latitude <= 60 && Math.abs(longitude) < 180
 }
 
-async function fetchFreshEarthquakes(minMagnitude: string, timeRange: string, underwaterOnly: boolean) {
-  let startTime: number
-  const now = Date.now()
-  
-  switch (timeRange) {
-    case 'hour': startTime = now - 3600000; break
-    case 'week': startTime = now - 604800000; break
-    case 'month': startTime = now - 2592000000; break
-    default: startTime = now - 86400000
-  }
-
-  const usgsUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${new Date(startTime).toISOString()}&minmagnitude=${minMagnitude}&orderby=time`
-
-  const response = await fetch(usgsUrl, { next: { revalidate: 600 } })
-  if (!response.ok) throw new Error('Failed to fetch earthquake data')
-
-  const data = await response.json()
-  let features: EarthquakeFeature[] = data.features || []
-
-  if (underwaterOnly) {
-    features = features.filter((quake: EarthquakeFeature) => {
-      const [longitude, latitude] = quake.geometry.coordinates
-      return isUnderwater(longitude, latitude)
-    })
-  }
-
-  return features.map((quake: EarthquakeFeature) => {
-    const [longitude, latitude, depth] = quake.geometry.coordinates
-    const { mag, place, time, tsunami, title } = quake.properties
-    
-    let depthCategory: string
-    if (depth < 70) depthCategory = 'shallow'
-    else if (depth < 300) depthCategory = 'intermediate'
-    else depthCategory = 'deep'
-
-    return {
-      id: quake.id,
-      magnitude: mag,
-      location: place || title,
-      longitude,
-      latitude,
-      depth,
-      time: new Date(time),
-      depthCategory,
-      tsunamiWarning: tsunami > 0,
-      isUnderwater: isUnderwater(longitude, latitude),
-    }
-  })
-}
-
-async function storeEarthquakes(earthquakes: any[]) {
-  for (const quake of earthquakes) {
-    try {
-      await prisma.earthquake.upsert({
-        where: { id: quake.id },
-        update: {
-          magnitude: quake.magnitude,
-          location: quake.location,
-          longitude: quake.longitude,
-          latitude: quake.latitude,
-          depth: quake.depth,
-          time: quake.time,
-          depthCategory: quake.depthCategory,
-          tsunamiWarning: quake.tsunamiWarning,
-          isUnderwater: quake.isUnderwater,
-          lastUpdated: new Date(),
-        },
-        create: quake,
-      })
-    } catch (e) {
-      console.log('Skipping duplicate or error:', quake.id)
-    }
-  }
-
-  // Delete old records (keep last 7 days)
-  const cutoffDate = new Date(Date.now() - 7 * 86400000)
-  try {
-    await prisma.earthquake.deleteMany({
-      where: { time: { lt: cutoffDate } }
-    })
-  } catch (e) {
-    console.log('Error cleaning old data')
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const minMagnitude = searchParams.get('minMagnitude') || '2.5'
     const timeRange = searchParams.get('timeRange') || 'day'
     const underwaterOnly = searchParams.get('underwaterOnly') !== 'false'
-    const refresh = searchParams.get('refresh') === 'true'
 
-    // Try to get data from DB first
-    let dbEarthquakes: any[] = []
-    try {
-      dbEarthquakes = await prisma.earthquake.findMany({
-        where: {
-          magnitude: { gte: parseFloat(minMagnitude) },
-          ...(underwaterOnly && { isUnderwater: true }),
-        },
-        orderBy: { time: 'desc' },
-        take: 200,
+    let startTime: number
+    const now = Date.now()
+    
+    switch (timeRange) {
+      case 'hour': startTime = now - 3600000; break
+      case 'week': startTime = now - 604800000; break
+      case 'month': startTime = now - 2592000000; break
+      default: startTime = now - 86400000
+    }
+
+    const usgsUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${new Date(startTime).toISOString()}&minmagnitude=${minMagnitude}&orderby=time`
+
+    const response = await fetch(usgsUrl, { next: { revalidate: 600 } })
+    
+    if (!response.ok) {
+      throw new Error(`USGS API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    let features: EarthquakeFeature[] = data.features || []
+
+    if (underwaterOnly) {
+      features = features.filter((quake: EarthquakeFeature) => {
+        const [longitude, latitude] = quake.geometry.coordinates
+        return isUnderwater(longitude, latitude)
       })
-    } catch (e) {
-      console.log('DB read error, will fetch fresh')
     }
 
-    // If no data in DB or refresh requested, fetch fresh data
-    if (dbEarthquakes.length === 0 || refresh) {
-      try {
-        const freshData = await fetchFreshEarthquakes(minMagnitude, timeRange, underwaterOnly)
-        if (freshData.length > 0) {
-          await storeEarthquakes(freshData)
-          
-          const storedData = await prisma.earthquake.findMany({
-            where: {
-              magnitude: { gte: parseFloat(minMagnitude) },
-              ...(underwaterOnly && { isUnderwater: true }),
-            },
-            orderBy: { time: 'desc' },
-            take: 200,
-          })
+    const earthquakes = features.map((quake: EarthquakeFeature) => {
+      const [longitude, latitude, depth] = quake.geometry.coordinates
+      const { mag, place, time, tsunami, title } = quake.properties
+      
+      let depthCategory: 'shallow' | 'intermediate' | 'deep'
+      if (depth < 70) depthCategory = 'shallow'
+      else if (depth < 300) depthCategory = 'intermediate'
+      else depthCategory = 'deep'
 
-          return NextResponse.json({
-            earthquakes: storedData.map(e => ({
-              id: e.id,
-              magnitude: e.magnitude,
-              location: e.location,
-              coordinates: { longitude: e.longitude, latitude: e.latitude, depth: e.depth },
-              time: e.time.toISOString(),
-              depthCategory: e.depthCategory,
-              tsunamiWarning: e.tsunamiWarning,
-              isUnderwater: e.isUnderwater,
-            })),
-            meta: { count: storedData.length, generated: new Date().toISOString() },
-          })
-        }
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError)
+      return {
+        id: quake.id,
+        magnitude: mag,
+        location: place || title,
+        coordinates: { longitude, latitude, depth },
+        time: new Date(time).toISOString(),
+        depthCategory,
+        tsunamiWarning: tsunami > 0,
+        isUnderwater: isUnderwater(longitude, latitude),
       }
+    })
+
+    // Try to store in DB (optional - don't fail if it doesn't work)
+    try {
+      const { PrismaClient } = await import('@prisma/client')
+      const prisma = new PrismaClient()
+      
+      for (const quake of earthquakes) {
+        await prisma.earthquake.upsert({
+          where: { id: quake.id },
+          update: {},
+          create: {
+            id: quake.id,
+            magnitude: quake.magnitude,
+            location: quake.location,
+            longitude: quake.coordinates.longitude,
+            latitude: quake.coordinates.latitude,
+            depth: quake.coordinates.depth,
+            time: new Date(quake.time),
+            depthCategory: quake.depthCategory,
+            tsunamiWarning: quake.tsunamiWarning,
+            isUnderwater: quake.isUnderwater,
+          },
+        }).catch(() => {})
+      }
+      
+      // Cleanup old
+      const cutoff = new Date(now - 7 * 86400000)
+      await prisma.earthquake.deleteMany({ where: { time: { lt: cutoff } } }).catch(() => {})
+      await prisma.$disconnect()
+    } catch (dbError) {
+      console.log('DB storage skipped')
     }
 
-    // Return DB data
     return NextResponse.json({
-      earthquakes: dbEarthquakes.map(e => ({
-        id: e.id,
-        magnitude: e.magnitude,
-        location: e.location,
-        coordinates: { longitude: e.longitude, latitude: e.latitude, depth: e.depth },
-        time: e.time.toISOString(),
-        depthCategory: e.depthCategory,
-        tsunamiWarning: e.tsunamiWarning,
-        isUnderwater: e.isUnderwater,
-      })),
-      meta: { count: dbEarthquakes.length, generated: new Date().toISOString() },
+      earthquakes,
+      meta: {
+        count: earthquakes.length,
+        generated: new Date().toISOString(),
+      },
     })
   } catch (error) {
     console.error('Earthquake API error:', error)
-    return NextResponse.json({ error: 'Failed to fetch earthquake data' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch earthquake data', details: String(error) },
+      { status: 500 }
+    )
   }
 }
