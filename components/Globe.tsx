@@ -127,7 +127,7 @@ export default function Globe({ earthquakes, onMarkerClick }: GlobeProps) {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      const delta = e.deltaY > 0 ? 0.3 : -0.3
+      const delta = e.deltaY > 0 ? 0.5 : -0.5
       const newZ = Math.max(1.5, Math.min(6, camera.position.z + delta))
       camera.position.z = newZ
     }
